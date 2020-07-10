@@ -1,0 +1,130 @@
+*** Handle .XLSX file upload
+
+* BIN - read data in Binary format (for .xlsx files)
+* DBF - Read data with leading zeros in database format
+* DAT - Read data for .CSV files
+
+* Read Binary data of upload file
+CALL FUNCTION 'GUI_UPLOAD'
+      EXPORTING
+        filename                = in_file
+        filetype                = 'BIN'    " Binary format
+      IMPORTING
+        filelength              = lv_filelength
+        header                  = lv_headerxstring
+      TABLES
+        data_tab                = lt_records    "gt_file
+      EXCEPTIONS
+        file_open_error         = 1
+        file_read_error         = 2
+        no_batch                = 3
+        gui_refuse_filetransfer = 4
+        invalid_type            = 5
+        no_authority            = 6
+        unknown_error           = 7
+        bad_data_format         = 8
+        header_not_allowed      = 9
+        separator_not_allowed   = 10
+        header_too_long         = 11
+        unknown_dp_error        = 12
+        access_denied           = 13
+        dp_out_of_memory        = 14
+        disk_full               = 15
+        dp_timeout              = 16
+        OTHERS                  = 17.
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+
+*  Convert Binary to XString
+    CALL FUNCTION 'SCMS_BINARY_TO_XSTRING'
+      EXPORTING
+        input_length = lv_filelength
+      IMPORTING
+        buffer       = lv_headerxstring
+      TABLES
+        binary_tab   = lt_records
+      EXCEPTIONS
+        failed       = 1
+        OTHERS       = 2.
+
+    IF sy-subrc <> 0.
+      "Implement suitable error handling here
+    ENDIF.
+
+    TRY .
+        lo_excel_ref = NEW cl_fdt_xl_spreadsheet(
+                                document_name = in_file
+                                xdocument     = lv_headerxstring ) .
+      CATCH cx_fdt_excel_core.
+    ENDTRY .
+
+*   List of Worksheets
+    lo_excel_ref->if_fdt_doc_spreadsheet~get_worksheet_names(
+      IMPORTING
+        worksheet_names = DATA(lt_ws) ).
+
+    IF NOT lt_ws IS INITIAL.
+      READ TABLE lt_ws INTO DATA(lv_ws) INDEX 1.
+
+      DATA(lo_data_ref) = lo_excel_ref->if_fdt_doc_spreadsheet~get_itab_from_worksheet(
+                                               lv_woksheetname ).
+*     Get data in internal table
+      ASSIGN lo_data_ref->* TO <gt_data>.
+    ENDIF.
+
+  LOOP AT <gt_data> ASSIGNING <fx_data> FROM 2 .
+
+    "Columns
+    DO n TIMES.  "n - Number of columns in the upload file
+      ASSIGN COMPONENT sy-index OF STRUCTURE <fx_data> TO <lv_field> .
+      IF sy-subrc = 0 .
+        CASE sy-index .
+          WHEN 1 .
+            ls_file-field00 = <lv_field>.
+          WHEN 2 .  "Doc date
+            ls_file-field01 = <lv_field>.
+          WHEN 3 .  "Posting date
+            ls_file-field02 = <lv_field>.
+          WHEN 4 .
+            ls_file-field03 = <lv_field>.
+          WHEN 5 .
+            ls_file-field04 = <lv_field>.
+          WHEN 6 .
+            ls_file-field05 = <lv_field>.
+          WHEN 7 .
+            ls_file-field06 = <lv_field>.
+          WHEN 8 .
+            ls_file-field07 = <lv_field>.
+          WHEN 9 .
+            ls_file-field08 = <lv_field>.
+          WHEN 10 .
+            ls_file-field09 = <lv_field>.
+          WHEN 11 .
+            ls_file-field10 = <lv_field>.
+          WHEN 12 .
+            ls_file-field11 = <lv_field>.
+          WHEN 13 .
+            ls_file-field12 = <lv_field>.
+          WHEN 14 .
+            ls_file-field13 = <lv_field>.
+          WHEN 15 .
+            ls_file-field14 = <lv_field>.
+          WHEN 16 .
+            ls_file-field15 = <lv_field>.
+          WHEN 17 .
+            ls_file-field16 = <lv_field>.
+          WHEN 18 .
+            ls_file-field17 = <lv_field>.
+          WHEN 19 .
+            ls_file-field18 = <lv_field>.
+          WHEN OTHERS.
+*            WRITE : <lv_field> .
+        ENDCASE .
+      ENDIF.
+    ENDDO .
+
+    APPEND ls_itab TO gt_itab.    "Collect data in another internal table 
+    CLEAR:ls_file.
+  ENDLOOP .
